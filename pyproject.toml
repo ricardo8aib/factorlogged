@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "factorlogged"
+version = "0.1.0"
+description = "Middleware logger for FastAPI"
+authors = ["Ricardo Ibarra <raib1997@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.109.0"
+uvicorn = "^0.27.0"
+SQLAlchemy = "^2.0.25"
+psycopg2 = "^2.9.9"
+paramiko = "^3.4.0"
+sshtunnel = "^0.4.0"
+
+[tool.poetry.dev-dependencies]
+isort = "^5.13.2"
+black = "^24.1.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
