@@ -4,6 +4,7 @@ import time
 import json
 from fastapi import Request
 from fastapi import FastAPI
+from starlette.background import BackgroundTasks
 
 
 class ExecutionTimesMiddleware:
@@ -34,6 +35,29 @@ class ExecutionTimesMiddleware:
         # by FastAPI for each HTTP request, but not during the __init__ method.
         app.middleware("http")(self.middleware)
 
+    async def log_request_data(self, request: Request, process_time: float):
+        # Load data to db
+        with PostgresDatabaseGateway.connection_handler(params=self.params) as SessionLocal:
+            data_dict = {
+                "execution_time": process_time,
+                "request.url": str(request.url),
+                "request.headers": dict(request.headers),
+                "request.session": request.session
+            }
+
+            # Convert the dictionary to a JSON string
+            data_json = json.dumps(data_dict)
+
+            # Create the RequestTime instance with the JSON data
+            request_time_record = create_request_time_object(
+                table_name=self.params.DATABASE_TABLE,
+                table_schema=self.params.DATABASE_SCHEMA,
+                data=data_json
+            )
+            SessionLocal.add(request_time_record)
+            SessionLocal.commit()
+            SessionLocal.close()
+
     async def middleware(
         self,
         request: Request,
@@ -53,27 +77,9 @@ class ExecutionTimesMiddleware:
         response = await call_next(request)
         process_time = time.time() - start_time
 
-        # Load data to db
-        with PostgresDatabaseGateway.connection_handler(params=self.params) as SessionLocal:
-            # Create a dictionary with the data to be stored in the JSON column
-            data_dict = {
-                "execution_time": process_time,
-                "request.url": request.url,
-                "request.headers": request.headers,
-                "request.session": request.session
-            }
-
-            # Convert the dictionary to a JSON string
-            data_json = json.dumps(data_dict)
-
-            # Create the RequestTime instance with the JSON data
-            request_time_record = create_request_time_object(
-                table_name=self.params.DATABASE_TABLE,
-                table_schema=self.params.DATABASE_SCHEMA,
-                data=data_json
-            )
-            SessionLocal.add(request_time_record)
-            SessionLocal.commit()
-            SessionLocal.close()
+        # Create a background task to log the request data without delaying the response
+        background_tasks = BackgroundTasks()
+        background_tasks.add_task(self.log_request_data, request, process_time)
+        response.background = background_tasks
 
         return response
